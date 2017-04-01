@@ -14,8 +14,23 @@ TERMINATE = 4
 
 def check_dir(file_path):
     directory = os.path.dirname(file_path)
+    print(directory)
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+def check_email(email):
+    check_dir("db/{}/".format(email))
+    i = 1
+    while True:
+        if os.path.exists("db/{}/{}.email".format(email)):
+            pass
+
+def create_email(email):
+    check_email(email)
+    
+def read_email(email):
+    
+    return None
 
 class Conn(object):
     def __init__(self, host, tcp_port, udp_port):
@@ -40,7 +55,10 @@ class Server(object):
         elif (len(req) == 3):
             cmd = "{} {}".format(req[0], req[1])
         else:
-            return 
+            return state, "500 Syntax error, command unrecognized\n"
+        return self.process_smpt_line(cmd, state, addr, conn_type, data)
+
+    def process_smtp_line(self, cmd, state, addr, conn_type, data):
         if cmd == "HELO":
             response = "200 HELO {}({})\n".format(addr, conn_type)
             state = WAITING_FROM
@@ -52,22 +70,23 @@ class Server(object):
         elif cmd == "QUIT":
             response = "200 BYE {}({})\n".format(addr, conn_type)
             state = TERMINATE
-        elif cmd == "MAIL":
-            if req[1] == "FROM":
-                pass
-            pass
-        elif cmd == "RCPT":
-            if req[1] == "TO":
+        elif cmd == "MAIL FROM":
+            if state == WAITING_FROM or state == WAITING_TO:
+                response = "".format(cmd)
+                # handle response
+                state = WAITING_TO
+                response = "503 {} before MAIL FROM\n".format(cmd)
+        elif cmd == "RCPT TO":
+            if state == WAITING_FROM:
                 response = "200 CALC ready!\n"
                 state = READY
             else:
-                # ERROR
-                response = "500 {} not recognized\n".format(cmd)
+                response = "503 {} before MAIL FROM\n".format(cmd)
+                #response = "500 {} not recognized\n".format(cmd)
         elif state != READY:
             response = "503 {} before CALC\n".format(cmd)
         else:
-            response = self.calculate(req)
-            state = WAITING
+            state = WAITING_TO
         return state, response
 
     def get_response(self, state, addr, conn_type, data):
@@ -142,9 +161,10 @@ class Server(object):
                 sys.exit()
 
 if __name__ == "__main__":
-    try:
+    check_email("john")
+    """try:
         Server('127.0.0.1', int(sys.argv[1]), int(sys.argv[2])).runserver()
     except IndexError:
         print("usage: python server.py <tcp-port-number> <udp-port-number>")
     except ValueError:
-        print("Port numbers must be integers.")
+        print("Port numbers must be integers.")"""
