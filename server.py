@@ -12,51 +12,22 @@ WAITING_RCPT = 2
 READY = 3
 TERMINATE = 4
 
-def check_dir(file_path):
-    directory = os.path.dirname(file_path)
-    print(directory)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-def check_email(email):
-    check_dir("db/{}/".format(email))
-    i = 1
-    while True:
-        if os.path.exists("db/{}/{}.email".format(email)):
-            pass
-
-def create_email(email):
-    check_email(email)
-    
-def read_email(email):
-    
-    return None
-
-class Conn(object):
-    def __init__(self, host, tcp_port, udp_port):
-        self.host = host
-        self.tcp = tcp_port
-        self.udp = udp_port
 
 class Server(object):
     def __init__(self, host, tcp_port, udp_port):
         self.host = host
         self.tcp = tcp_port
         self.udp = udp_port
-        # self.conn_count = 0
 
-    def smtp_response(self, state, addr, conn_type, data):
-        lines = data.split("\n")
-        req = lines[0].split()
-        print(req)
-        print(len(req))
+    def smtp_response(self, state, addr, conn_type, line):
+        req = line.split()
         if (len(req) == 2):
             cmd = req[0]
         elif (len(req) == 3):
             cmd = "{} {}".format(req[0], req[1])
         else:
             return state, "500 Syntax error, command unrecognized\n"
-        return self.process_smpt_line(cmd, state, addr, conn_type, data)
+        return self.process_smpt_line(cmd, state, addr, conn_type, arg)
 
     def process_smtp_line(self, cmd, state, addr, conn_type, data):
         if cmd == "HELO":
@@ -77,16 +48,15 @@ class Server(object):
                 state = WAITING_TO
                 response = "503 {} before MAIL FROM\n".format(cmd)
         elif cmd == "RCPT TO":
-            if state == WAITING_FROM:
-                response = "200 CALC ready!\n"
+            if state == WAITING_FROM or state == READY:
+                # handle response
                 state = READY
             else:
-                response = "503 {} before MAIL FROM\n".format(cmd)
+                response = "503 {} before RCPT TO\n".format(cmd)
                 #response = "500 {} not recognized\n".format(cmd)
-        elif state != READY:
-            response = "503 {} before CALC\n".format(cmd)
         else:
-            state = WAITING_TO
+
+            state = READY
         return state, response
 
     def get_response(self, state, addr, conn_type, data):
@@ -104,9 +74,14 @@ class Server(object):
                 data = conn.recv(1024)
                 if data:
                     print("Packet received: {}".format(data))
-                    state, res = self.get_response(state, client_addr[0], "TCP", data)
-                    print("Sending response: {}".format(res))
-                    conn.sendall(res)
+                    lines = data.split("\n")
+                    for line in lines:
+                        state, res = self.get_smtp_response(state, client_addr[0], "TCP", line)
+                        print("Sending response: {}".format(res))
+                        conn.sendall(res)
+                        if state == TERMINATE:
+                            conn.close()
+                            break
                     if state == TERMINATE:
                         conn.close()
                         break
@@ -116,7 +91,7 @@ class Server(object):
                 conn.close()
                 break
             
-    def udp_server(self):
+    """def udp_server(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         addr = (self.host, self.udp)
         s.bind(addr)
@@ -133,7 +108,7 @@ class Server(object):
             s.sendto(data, client_addr)
             if clients[client_addr] == terminate:
                 clients[client_addr] = START
-        s.close()
+        s.close()"""
             
 
     def tcp_server(self):
@@ -148,12 +123,12 @@ class Server(object):
 
     def runserver(self):
         host = '127.0.0.1'
-        udp_server = threading.Thread(target = self.udp_server)
+        #udp_server = threading.Thread(target = self.udp_server)
         tcp_server = threading.Thread(target = self.tcp_server)
-        udp_server.daemon = True
+        #udp_server.daemon = True
         tcp_server.daemon = True
         print("Starting threads. Type Q or Quit to quit.")
-        udp_server.start()
+        #udp_server.start()
         tcp_server.start()
         while True:
             cmd = raw_input().lower()
@@ -161,10 +136,9 @@ class Server(object):
                 sys.exit()
 
 if __name__ == "__main__":
-    check_email("john")
-    """try:
+    try:
         Server('127.0.0.1', int(sys.argv[1]), int(sys.argv[2])).runserver()
     except IndexError:
         print("usage: python server.py <tcp-port-number> <udp-port-number>")
     except ValueError:
-        print("Port numbers must be integers.")"""
+        print("Port numbers must be integers.")
