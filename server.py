@@ -9,8 +9,9 @@ CMD_LIST = ["HELO", "MAIL FROM", "RCPT TO", "DATA", "QUIT"]
 START = 0
 WAITING_FROM = 1
 WAITING_RCPT = 2
-READY = 3
-TERMINATE = 4
+WAITING_DATA = 3
+RECEIVING = 4
+TERMINATE = 5
 
 
 class Server(object):
@@ -29,34 +30,41 @@ class Server(object):
             return state, "500 Syntax error, command unrecognized\n"
         return self.process_smpt_line(cmd, state, addr, conn_type, arg)
 
-    def process_smtp_line(self, cmd, state, addr, conn_type, data):
+    @staticmethod
+    def process_smtp_line(cmd, state, addr, conn_type, data):
         if cmd == "HELO":
-            response = "200 HELO {}({})\n".format(addr, conn_type)
-            state = WAITING_FROM
+            if state == START:
+                response = "200 HELO {}({})\n".format(addr, conn_type)
+                state = WAITING_FROM
+            else:
+                response = "503 {} already received".format(cmd)
         elif state == START:
             response = "503 No HELO\n".format(cmd)
             state = TERMINATE
-        elif cmd not in CMD_LIST:
-            response = "500 {} not recognized\n".format(cmd)
         elif cmd == "QUIT":
             response = "200 BYE {}({})\n".format(addr, conn_type)
             state = TERMINATE
         elif cmd == "MAIL FROM":
             if state == WAITING_FROM or state == WAITING_TO:
-                response = "".format(cmd)
+                response = "200 OK"
                 # handle response
                 state = WAITING_TO
-                response = "503 {} before MAIL FROM\n".format(cmd)
+            else:
+                response = "503 {} after RCPT TO\n".format(cmd)
         elif cmd == "RCPT TO":
-            if state == WAITING_FROM or state == READY:
+            if state == WAITING_TO:
                 # handle response
                 state = READY
+            elif state > WAITING_TO:
+                response = "503 {} already received\n".format(cmd)
             else:
-                response = "503 {} before RCPT TO\n".format(cmd)
-                #response = "500 {} not recognized\n".format(cmd)
+                response = "503 {} before MAIL FROM\n".format(cmd)
+        elif cmd == "DATA":
+            if state == WAITING_DATA:
+                response = "200 OK"
+                state = RECEIVING
         else:
-
-            state = READY
+            response = "500 {} not recognized\n".format(cmd)
         return state, response
 
     def get_response(self, state, addr, conn_type, data):
@@ -136,9 +144,11 @@ class Server(object):
                 sys.exit()
 
 if __name__ == "__main__":
+    print(Server.process_smtp_line("HELO", START, "192.198.0.1", "UDP", ""))
+"""
     try:
         Server('127.0.0.1', int(sys.argv[1]), int(sys.argv[2])).runserver()
     except IndexError:
         print("usage: python server.py <tcp-port-number> <udp-port-number>")
     except ValueError:
-        print("Port numbers must be integers.")
+        print("Port numbers must be integers.")"""
