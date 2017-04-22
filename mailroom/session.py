@@ -16,6 +16,7 @@ class MailSession(object):
         self.target = ""
     
     def process_cmd(self, line):
+        response = "200 OK\n"
         if MailSession.compare_cmd("HELO", line):
             if self.state == START:
                 response = "200 HELO {}(TCP)\n".format(self.addr)
@@ -29,7 +30,6 @@ class MailSession(object):
             response = "200 BYE {}(TCP)\n".format(self.addr)
             self.state = TERMINATE
         elif MailSession.compare_cmd("MAIL FROM", line):
-            response = "200 OK"
             data = line[9:].strip()
             if self.state == WAITING_FROM:
                 self.msg += "From: <{}>".format(data)
@@ -39,7 +39,6 @@ class MailSession(object):
             else:
                 response = "503 MAIL FROM after RCPT TO\n"
         elif MailSession.compare_cmd("RCPT TO", line):
-            response = "200 OK"
             if self.state == WAITING_RCPT:
                 data = line[7:].strip()
                 self.msg += "\nTo: <{}>\n".format(data)
@@ -51,7 +50,6 @@ class MailSession(object):
                 response = "503 RCPT TO before MAIL FROM\n"
         elif MailSession.compare_cmd("DATA", line):
             if self.state == WAITING_DATA:
-                response = "200 OK"
                 self.state = RECEIVING
             else:
                 response = "503 DATA before RCPT TO\n"
@@ -62,7 +60,6 @@ class MailSession(object):
     def process_line(self, line):
         if self.state == RECEIVING:
             self.msg += line
-            print(line)
             if line == ".":
                 self.state = SAVING
                 return "200 OK\n"
