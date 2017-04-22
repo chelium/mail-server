@@ -2,9 +2,10 @@ import os
 import sys
 import threading
 import socket
+from mailroom.mailroom import *
+from mailroom.session import *
 
 MAX_CONN = 16
-CMD_LIST = ["HELO", "MAIL FROM", "RCPT TO", "DATA", "QUIT"]
 # States
 START = 0
 WAITING_FROM = 1
@@ -20,63 +21,15 @@ class Server(object):
         self.tcp = tcp_port
         self.udp = udp_port
 
-    def smtp_response(self, state, addr, conn_type, line):
-        req = line.split()
-        if (len(req) == 2):
-            cmd = req[0]
-        elif (len(req) == 3):
-            cmd = "{} {}".format(req[0], req[1])
-        else:
-            return state, "500 Syntax error, command unrecognized\n"
-        return self.process_smpt_line(cmd, state, addr, conn_type, arg)
-
-    @staticmethod
-    def process_smtp_line(cmd, state, addr, conn_type, data):
-        if cmd == "HELO":
-            if state == START:
-                response = "200 HELO {}({})\n".format(addr, conn_type)
-                state = WAITING_FROM
-            else:
-                response = "503 {} already received".format(cmd)
-        elif state == START:
-            response = "503 No HELO\n".format(cmd)
-            state = TERMINATE
-        elif cmd == "QUIT":
-            response = "200 BYE {}({})\n".format(addr, conn_type)
-            state = TERMINATE
-        elif cmd == "MAIL FROM":
-            if state == WAITING_FROM or state == WAITING_TO:
-                response = "200 OK"
-                # handle response
-                state = WAITING_TO
-            else:
-                response = "503 {} after RCPT TO\n".format(cmd)
-        elif cmd == "RCPT TO":
-            if state == WAITING_TO:
-                # handle response
-                state = READY
-            elif state > WAITING_TO:
-                response = "503 {} already received\n".format(cmd)
-            else:
-                response = "503 {} before MAIL FROM\n".format(cmd)
-        elif cmd == "DATA":
-            if state == WAITING_DATA:
-                response = "200 OK"
-                state = RECEIVING
-        else:
-            response = "500 {} not recognized\n".format(cmd)
-        return state, response
-
-    def get_response(self, state, addr, conn_type, data):
+    def get_response(self, state, addr, data):
         req = data.split()
         cmd = req[0]
         if cmd == "GET":
             response = ""
         return state, response
         
-
     def tcp_listen(self, conn, client_addr):
-        state = START
+        session = MailSession(client_addr)
         while True:
             try:
                 data = conn.recv(1024)
@@ -84,13 +37,13 @@ class Server(object):
                     print("Packet received: {}".format(data))
                     lines = data.split("\n")
                     for line in lines:
-                        state, res = self.get_smtp_response(state, client_addr[0], "TCP", line)
+                        session.process_line(line)
                         print("Sending response: {}".format(res))
                         conn.sendall(res)
-                        if state == TERMINATE:
+                        if session.state == TERMINATE:
                             conn.close()
                             break
-                    if state == TERMINATE:
+                    if session.state == TERMINATE:
                         conn.close()
                         break
                 else:
@@ -144,7 +97,7 @@ class Server(object):
                 sys.exit()
 
 if __name__ == "__main__":
-    print(Server.process_smtp_line("HELO", START, "192.198.0.1", "UDP", ""))
+    pass
 """
     try:
         Server('127.0.0.1', int(sys.argv[1]), int(sys.argv[2])).runserver()

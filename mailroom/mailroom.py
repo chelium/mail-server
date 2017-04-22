@@ -23,6 +23,11 @@ class MailRoom(object):
         
     def get_email_path(self, username, i):
         return "{}{}/{:0=3d}.email".format(self.path, username, i)
+
+    def save_email(self, to_email, content):
+        fname = self.check_email(MailRoom.get_username(to_email))
+        with open(fname, 'w') as f:
+            f.write(content)
     
     @staticmethod
     def check_dir(path):
