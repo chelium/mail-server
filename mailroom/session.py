@@ -1,3 +1,6 @@
+import base64
+import random
+
 CMD_LIST = ["HELO", "MAIL FROM", "RCPT TO", "DATA", "QUIT"]
 # States
 START = 0
@@ -19,7 +22,7 @@ class MailSession(object):
         self.passkeys = {}
         self.user = ""
         self.target = ""
-    
+        
     def parse_passkeys(file_data):
         lines = file_data.split("\n")
         for line in lines:
@@ -75,27 +78,27 @@ class MailSession(object):
     def process_line(self, line):
         if self.state == AUTH_START:
             email = line.strip()
-            if True: # Check if email is valid
-                self.user = email
-                if email in self.passkeys.keys():
-                    self.state = AUTH_WAIT
-                    return "334 cGFzc3dvcmQ6"
-                else:
-                    self.state = AUTH_FIRST
-                    new_pass = self.generate_pass()
-                    self.passkeys[self.user] = MailSession.encode(new_pass)
-                    return "330 {}".format(new_pass)
+            if not MailSession.is_valid_email(email):
+                return "401 Invalid email\n"
+            elif not MailSession.is_valid_domain(email):
+                return "401 Invalid email domain\n"
+            self.user = email
+            if email in self.passkeys.keys():
+                self.state = AUTH_WAIT
+                return "334 cGFzc3dvcmQ6\n"
             else:
-                # Invalid email return error
-                return "Invalid email"
-        elif self.state = AUTH_WAIT:
+                self.state = AUTH_FIRST
+                new_pass = MailSession.generate_pass()
+                self.passkeys[self.user] = MailSession.encode(new_pass)
+                return "330 {}\n".format(new_pass)
+        elif self.state == AUTH_WAIT:
             passkey = line.strip()
             try:
-                if MailSession.encode(int(passkey)) == self.passkeys[self.user]:
-                    return "Auth success"
+                if len(passkey) == 5 and MailSession.encode(int(passkey)) == self.passkeys[self.user]:
+                    return "200 Auth success\n"
             except ValueError:
-                return "Auth failed"
-            return "Auth failed"
+                return "401 Auth failed\n"
+            return "401 Auth failed\n"
         elif self.state == RECEIVING:
             self.msg += line
             if line == ".":
@@ -105,6 +108,18 @@ class MailSession(object):
         else:
             return self.process_cmd(line)
     
+    @staticmethod
+    def generate_pass():
+        passcode = 0
+        for i in range(5):
+            passcode *= 10
+            passcode += random.randint(0, 9)
+        return passcode
+
+    @staticmethod
+    def encode(password):
+        password += 447
+        return base64.b64encode(str(password))
 
     @staticmethod
     def compare_cmd(cmd, line):
@@ -119,4 +134,9 @@ class MailSession(object):
         parts = email.split('@')
         if not parts[0] or not parts[1]:
             return False
-        
+        return True
+
+    @staticmethod
+    def is_valid_domain(email):
+        domain = email.split('@')[2]
+        return domain == "447.edu"

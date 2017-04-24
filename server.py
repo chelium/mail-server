@@ -30,22 +30,23 @@ class Server(object):
                 data = conn.recv(1024)
                 if data:
                     print("Packet received: {}".format(data))
-                    lines = data.split("\n")
-                    for line in lines:
-                        res = session.process_line(line)
-                        print("Sending response: {}".format(res))
-                        conn.sendall(res)
-                        if session.state >= SAVING:
-                            if session.state == SAVING:
-                                self.mailroom.save_email(session.target,
-                                                         session.msg)
-                                session.state = TERMINATE
+                    res = session.process_line(data)
+                    print("Sending response: {}".format(res))
+                    conn.sendall(res)
+                    if session.state == AUTH_FIRST: 
+                        self.mailroom.save_pass(session.user,
+                                                session.passkeys[session.user])
+                        session.state = TERMINATE
+                        conn.close()
+                    elif session.state >= SAVING:
+                        if session.state == SAVING:
+                            self.mailroom.save_email(session.target,
+                                                     session.msg)
+                            session.state = TERMINATE
                             conn.close()
                             break
-                    if session.state == TERMINATE:
-                        conn.close()
-                        break
                 else:
+                    conn.close()
                     break
             except:
                 conn.close()
