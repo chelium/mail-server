@@ -25,6 +25,7 @@ class Server(object):
         
     def tcp_listen(self, conn, client_addr):
         session = MailSession(client_addr)
+        session.parse_passkeys(self.mailroom.read_pass())
         while True:
             try:
                 data = conn.recv(1024)
