@@ -1,19 +1,31 @@
 CMD_LIST = ["HELO", "MAIL FROM", "RCPT TO", "DATA", "QUIT"]
 # States
 START = 0
-WAITING_FROM = 1
-WAITING_RCPT = 2
-WAITING_DATA = 3
-RECEIVING = 4
-TERMINATE = 5
-SAVING = 6
+AUTH_START = 1
+AUTH_FIRST = 2
+AUTH_WAIT = 3
+WAITING_FROM = 4
+WAITING_RCPT = 5
+WAITING_DATA = 6
+RECEIVING = 7
+SAVING = 8
+TERMINATE = 9
 
 class MailSession(object):
     def __init__(self, address):
         self.msg = ""
         self.state = START
         self.addr = address
+        self.passkeys = {}
+        self.user = ""
         self.target = ""
+    
+    def parse_passkeys(file_data):
+        lines = file_data.split("\n")
+        for line in lines:
+            pair = line.split(",")
+            if len(pair) == 2:
+                self.passkeys[pair[0]] = pair[1]
     
     def process_cmd(self, line):
         response = "200 OK\n"
@@ -26,6 +38,9 @@ class MailSession(object):
         elif self.state == START:
             response = "503 No HELO\n"
             self.state = TERMINATE
+        elif MailSession.compare_cmd("AUTH", line):
+            response = "334 dXN1cm5hbWU6\n"
+            self.state = AUTH_START
         elif MailSession.compare_cmd("QUIT", line):
             response = "200 BYE {}(TCP)\n".format(self.addr)
             self.state = TERMINATE
@@ -58,7 +73,30 @@ class MailSession(object):
         return response
 
     def process_line(self, line):
-        if self.state == RECEIVING:
+        if self.state == AUTH_START:
+            email = line.strip()
+            if True: # Check if email is valid
+                self.user = email
+                if email in self.passkeys.keys():
+                    self.state = AUTH_WAIT
+                    return "334 cGFzc3dvcmQ6"
+                else:
+                    self.state = AUTH_FIRST
+                    new_pass = self.generate_pass()
+                    self.passkeys[self.user] = MailSession.encode(new_pass)
+                    return "330 {}".format(new_pass)
+            else:
+                # Invalid email return error
+                return "Invalid email"
+        elif self.state = AUTH_WAIT:
+            passkey = line.strip()
+            try:
+                if MailSession.encode(int(passkey)) == self.passkeys[self.user]:
+                    return "Auth success"
+            except ValueError:
+                return "Auth failed"
+            return "Auth failed"
+        elif self.state == RECEIVING:
             self.msg += line
             if line == ".":
                 self.state = SAVING
@@ -67,27 +105,18 @@ class MailSession(object):
         else:
             return self.process_cmd(line)
     
+
     @staticmethod
     def compare_cmd(cmd, line):
         if len(line) < len(cmd):
             return False
         return cmd == line[:len(cmd)]
 
-
-if __name__ == "__main__":
-    session = MailSession("195.0.2.1")
-    res = session.process_line("HELO")
-    print(res)
-    res = session.process_line("MAIL FROM john@john.com")
-    print(res)
-    res = session.process_line("MAIL FROM jake@jake.com")
-    print(res)
-    res = session.process_line("RCPT TO josh@josh.com")
-    print(res)
-    res = session.process_line("DATA")
-    print(res)
-    res = session.process_line(raw_input())
-    print(res)
-    res = session.process_line(raw_input())
-    print(res)
-    print(session.msg)
+    @staticmethod
+    def is_valid_email(email):
+        if email.count('@') != 1:
+            return False
+        parts = email.split('@')
+        if not parts[0] or not parts[1]:
+            return False
+        

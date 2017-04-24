@@ -42,7 +42,12 @@ class TestMailSession(unittest.TestCase):
         s.process_line("Lorem ipsum")
         self.assertEqual(s.process_line("."), "200 OK\n")
         self.assertEqual(s.state, SAVING)
-        
+       
+
+class TestMailRoom(unittest.TestCase):
+    
+    def test_create(self):
+        self.assertEqual(1, 1)
     
 
 if __name__ == "__main__":

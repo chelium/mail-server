@@ -5,6 +5,18 @@ class MailRoom(object):
     def __init__(self, path):
         self.path = path
         MailRoom.check_dir(path)
+    
+    def read_pass(self):
+        passkey_file = "{}.user_pass".format(self.path)
+        if not os.path.exists(passkey_file):
+            open(passkey_file, 'w')
+        with open(passkey_file, 'r') as f:
+            return f.read()
+
+    def save_pass(self, username, passkey):
+        passkey_file = "{}.user_pass".format(self.path)
+        with open(passkey_file, 'a') as f:
+            f.write("{},{}\n".format(username, passkey))
 
     def check_email(self, username):
         MailRoom.check_dir("{}{}/".format(self.path, username))
@@ -54,5 +66,4 @@ To: <{}>
 
 if __name__ == "__main__":
     mr = MailRoom("db/")
-    MailRoom.mail_from_list_to_str(["john@john.com", "robert@gmail.com", "james@james.com"])
-    #print(mr.check_email("john"))
+    mr.read_pass()

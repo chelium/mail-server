@@ -7,12 +7,6 @@ from mailroom.session import *
 
 MAX_CONN = 16
 # States
-START = 0
-WAITING_FROM = 1
-WAITING_RCPT = 2
-WAITING_DATA = 3
-RECEIVING = 4
-TERMINATE = 5
 
 
 class Server(object):
@@ -20,6 +14,7 @@ class Server(object):
         self.host = host
         self.tcp = tcp_port
         self.udp = udp_port
+        self.mailroom = MailRoom("db/")
 
     def get_response(self, state, addr, data):
         req = data.split()
@@ -37,10 +32,14 @@ class Server(object):
                     print("Packet received: {}".format(data))
                     lines = data.split("\n")
                     for line in lines:
-                        session.process_line(line)
+                        res = session.process_line(line)
                         print("Sending response: {}".format(res))
                         conn.sendall(res)
-                        if session.state == TERMINATE:
+                        if session.state >= SAVING:
+                            if session.state == SAVING:
+                                self.mailroom.save_email(session.target,
+                                                         session.msg)
+                                session.state = TERMINATE
                             conn.close()
                             break
                     if session.state == TERMINATE:
@@ -97,11 +96,9 @@ class Server(object):
                 sys.exit()
 
 if __name__ == "__main__":
-    pass
-"""
     try:
         Server('127.0.0.1', int(sys.argv[1]), int(sys.argv[2])).runserver()
     except IndexError:
         print("usage: python server.py <tcp-port-number> <udp-port-number>")
     except ValueError:
-        print("Port numbers must be integers.")"""
+        print("Port numbers must be integers.")
