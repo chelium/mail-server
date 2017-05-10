@@ -1,14 +1,25 @@
 import unittest
+from random import Random
 from mailroom.session import *
 
 TEST_IP = "127.0.0.1"
 
 class TestMailSession(unittest.TestCase):
 
+    def setUp(self):
+        global random
+        random = Random(0)
+        
     def test_hello(self):
         s = MailSession(TEST_IP)
         self.assertEqual(s.process_line("HELO"), "200 HELO {}(TCP)\n".format(TEST_IP))
-        self.assertEqual(s.state, WAITING_FROM)
+        self.assertEqual(s.state, GREETED)
+    
+    def test_auth(self):
+        s = MailSession(TEST_IP)
+        s.process_line("HELO")
+        s.process_line("AUTH")
+        self.assertEqual(s.state, AUTH_START)
         
     def test_mail_from(self):
         s = MailSession(TEST_IP)

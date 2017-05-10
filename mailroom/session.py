@@ -4,15 +4,16 @@ import random
 CMD_LIST = ["HELO", "MAIL FROM", "RCPT TO", "DATA", "QUIT"]
 # States
 START = 0
-AUTH_START = 1
-AUTH_FIRST = 2
-AUTH_WAIT = 3
-WAITING_FROM = 4
-WAITING_RCPT = 5
-WAITING_DATA = 6
-RECEIVING = 7
-SAVING = 8
-TERMINATE = 9
+GREETED = 1
+AUTH_START = 2
+AUTH_FIRST = 3
+AUTH_WAIT = 4
+WAITING_FROM = 5
+WAITING_RCPT = 6
+WAITING_DATA = 7
+RECEIVING = 8
+SAVING = 9
+TERMINATE = 10
 
 class MailSession(object):
     def __init__(self, address):
@@ -23,7 +24,7 @@ class MailSession(object):
         self.user = ""
         self.target = ""
         
-    def parse_passkeys(file_data):
+    def parse_passkeys(self, file_data):
         lines = file_data.split("\n")
         for line in lines:
             pair = line.split(",")
@@ -35,18 +36,21 @@ class MailSession(object):
         if MailSession.compare_cmd("HELO", line):
             if self.state == START:
                 response = "200 HELO {}(TCP)\n".format(self.addr)
-                self.state = WAITING_FROM
+                self.state = GREETED
             else:
                 response = "503 HELO already received\n"
         elif self.state == START:
             response = "503 No HELO\n"
             self.state = TERMINATE
-        elif MailSession.compare_cmd("AUTH", line):
-            response = "334 dXN1cm5hbWU6\n"
-            self.state = AUTH_START
         elif MailSession.compare_cmd("QUIT", line):
             response = "200 BYE {}(TCP)\n".format(self.addr)
             self.state = TERMINATE
+        elif MailSession.compare_cmd("AUTH", line):
+            response = "334 dXN1cm5hbWU6\n"
+            self.state = AUTH_START
+        elif self.state <= AUTH_WAIT:
+            response = "400 Not authenticated\n"
+            # not Authenticated
         elif MailSession.compare_cmd("MAIL FROM", line):
             data = line[9:].strip()
             if self.state == WAITING_FROM:
@@ -90,11 +94,12 @@ class MailSession(object):
                 self.state = AUTH_FIRST
                 new_pass = MailSession.generate_pass()
                 self.passkeys[self.user] = MailSession.encode(new_pass)
-                return "330 {}\n".format(new_pass)
+                return "330 {:05d}\n".format(new_pass)
         elif self.state == AUTH_WAIT:
             passkey = line.strip()
             try:
                 if len(passkey) == 5 and MailSession.encode(int(passkey)) == self.passkeys[self.user]:
+                    self.state = WAITING_FROM
                     return "200 Auth success\n"
             except ValueError:
                 return "401 Auth failed\n"
@@ -138,5 +143,5 @@ class MailSession(object):
 
     @staticmethod
     def is_valid_domain(email):
-        domain = email.split('@')[2]
+        domain = email.split('@')[1]
         return domain == "447.edu"

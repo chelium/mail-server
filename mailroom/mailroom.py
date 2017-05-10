@@ -1,5 +1,5 @@
 import os
-
+import datetime
 
 class MailRoom(object):
     def __init__(self, path):
@@ -39,7 +39,7 @@ class MailRoom(object):
     def save_email(self, to_email, content):
         fname = self.check_email(MailRoom.get_username(to_email))
         with open(fname, 'w') as f:
-            f.write(content)
+            f.write("Date: {}\n{}".format(datetime.datetime.now(), content))
     
     @staticmethod
     def check_dir(path):
